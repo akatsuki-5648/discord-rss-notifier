@@ -11,7 +11,10 @@ permissions:
   contents: write
 
 concurrency:
-  group: ailab-news-notifier
+  # ★2026-07-30 統一: pushする4本を同一groupにして「同時に走らせない」
+  #   別groupだと同時実行→git pushがnon-fast-forwardで衝突→job failure→メール通知
+  #   同一groupなら順番待ちになるので衝突そのものが発生しない
+  group: discord-rss-notifier-repo-write
   cancel-in-progress: false
 
 jobs:
