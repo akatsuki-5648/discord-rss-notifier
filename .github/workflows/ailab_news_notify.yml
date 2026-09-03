@@ -2,9 +2,11 @@ name: AIラボ 15分類 AI News Notifier
 
 on:
   schedule:
-    # 15分・45分。ic_club_notify.yml(5,35)・notify.yml(*/30=0,30)とcron時刻を意図的にずらしている
-    # (同一リポジトリで同時刻に複数scheduleがあるとGitHub側で競合しやすいため)
-    - cron: "15,45 * * * *"
+    # ★2026-09-03 実測: "15,45"(1日48回)の設定に対し、実際の実行は1日6〜9回まで間引かれていた
+    #   (GitHub Actionsのscheduleは高負荷時に遅延・スキップされる仕様)。
+    #   混雑しやすい 0/15/30/45分を避けた分に移し、15分毎(1日96回)へ増やして取りこぼしを減らす。
+    #   ic_club_notify.yml(5,35)・notify.yml(*/30=0,30)とも重複しない。
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch: {}
 
 permissions:

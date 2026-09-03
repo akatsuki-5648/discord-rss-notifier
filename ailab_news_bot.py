@@ -106,8 +106,11 @@ TOPICS = [
      rss("https://deepmind.google/blog/rss.xml", include=GEMINI_TERMS),
      rss("https://zenn.dev/topics/gemini/feed", include=GEMINI_TERMS, title_include=["Gemini"])]},
  {"num":"④","name":"グロック速報","env":"XAI","color":COL_BIZ,"sources":[
-     gn('(xAI OR Grok) (発表 OR 公開 OR 提供開始 OR 新機能 OR 新モデル OR API OR アップデート OR benchmark) -SpaceXAI -スペースXAI',
+     # ★2026-09-03 実叩き: 旧クエリは後置の限定語(発表 OR 公開…)がANDで効き、48h以内0件だった。
+     #   'Grok OR xAI' の広めクエリは実測10件、reddit r/grok は実測5件。
+     gn('Grok OR xAI OR "Grok 4" OR "Grok 5" -SpaceXAI -スペースXAI',
         include=XAI_TERMS, exclude=["スペースXAI", "カーサー共同", "買収直後のCursor", "note", "AIイラストクリエイター"]),
+     rss("https://www.reddit.com/r/grok/top/.rss?t=day&limit=15", include=XAI_TERMS),
      rss("https://rss.itmedia.co.jp/rss/2.0/aiplus.xml", include=XAI_TERMS),
      rss("https://gigazine.net/news/rss_2.0/", include=XAI_TERMS),
      rss("https://hnrss.org/frontpage", include=XAI_TERMS)]},
