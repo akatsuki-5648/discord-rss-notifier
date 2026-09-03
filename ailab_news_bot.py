@@ -121,7 +121,9 @@ TOPICS = [
      rss("https://zenn.dev/topics/ai/feed", include=COPILOT_TERMS, title_include=["Copilot"]),
      rss("https://github.blog/changelog/label/copilot/feed/", include=COPILOT_TERMS, title_include=["Copilot"])]},
  {"num":"⑥","name":"メタAI速報","env":"META","color":COL_BIZ,"sources":[
-     gn('("Meta AI" OR "Meta Llama" OR Llama) (発表 OR 公開 OR 提供開始 OR 新機能 OR 新モデル OR オープンソース OR benchmark) -"MUSIC FAIR" -音楽',
+     # ★2026-09-03 実叩き: 後置の限定語(発表 OR 公開…)がANDで効き48h以内0件だった。外すと実測1件。
+     #   新ソースは全滅(ai.meta.com/blog=404 / theverge・techmeme・hnrss=0)のため追加せずクエリのみ広げる。
+     gn('"Meta AI" OR "Meta Llama" OR Llama OR "Meta Superintelligence" -"MUSIC FAIR" -音楽',
         include=META_TERMS, exclude=["MUSIC FAIR", "Garmin", "AIグラス"]),
      rss("https://rss.itmedia.co.jp/rss/2.0/aiplus.xml", include=META_TERMS),
      rss("https://gigazine.net/news/rss_2.0/", include=META_TERMS),
@@ -147,7 +149,9 @@ TOPICS = [
      rss("https://rss.itmedia.co.jp/rss/2.0/aiplus.xml", include=IMGVID_TERMS),
      rss("https://hnrss.org/frontpage", include=IMGVID_TERMS)]},
  {"num":"⑩","name":"音声・音楽AI速報","env":"AUDIO","color":COL_FIELD,"sources":[
-     gn('(ElevenLabs OR Suno OR Udio OR Whisper OR VOICEVOX OR 音声生成AI OR 音楽生成AI OR 音声合成AI OR TTS) (発表 OR 公開 OR 提供開始 OR 新機能 OR 新モデル OR API OR アップデート) -薬歴 -薬局 -医療 -銀行',
+     # ★2026-09-03 実叩き: 後置の限定語(発表 OR 公開…)がANDで効き48h以内0件だった。外すと実測3件。
+     #   新ソースは全滅(elevenlabs blog=404 / engadgetは"voice"の誤ヒット / reddit=429)のため追加しない。
+     gn('ElevenLabs OR Suno OR Udio OR "音声生成AI" OR "音楽生成AI" OR "AI音声" OR "AI音楽" OR VOICEVOX -薬歴 -薬局 -医療 -銀行',
         include=AUDIO_TERMS, exclude=["Moomoo", "Marble", "Sakana", "薬歴", "薬局"]),
      rss("https://gigazine.net/news/rss_2.0/", include=AUDIO_TERMS),
      rss("https://rss.itmedia.co.jp/rss/2.0/aiplus.xml", include=AUDIO_TERMS),
