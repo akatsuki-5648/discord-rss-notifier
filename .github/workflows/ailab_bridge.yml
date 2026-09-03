@@ -10,15 +10,18 @@ on:
   #   AIラボ本体を ailab-news-bot へ分離した結果、Layer1(自前cron)もLayer3(kurenai-market-trigger)も
   #   GitHub側のschedule間引きで停止し、2026-09-03に7時間配信が止まった。
   #   IC倶楽部/金融市場Botは同時刻帯にschedule実績があるため、その完了に便乗して押す。
-  #   ★crypto_bridge は cron 4,14,24,34,44,54(10分毎)＋IC/market便乗で当リポ最頻出。
-  #     これに便乗することで、Layer1/Layer3が両方間引かれてもラボが実質10分毎に押される。
+  #   ★2026-09-03 実測: crypto_bridge(10分毎cron＋便乗=当リポ最頻出)への便乗は【過剰】だった。
+  #     bridgeが 18:34:09/18:34:30/18:35:02/18:35:24 と0.3〜0.5分間隔で連発し、
+  #     botの1実行(argostranslate導入で3〜5分)が終わる前に次が来て、
+  #     concurrency により cancelled が7件連続=一度も配信できない状態になった。
+  #     便乗先は IC倶楽部(cron 5,35=30分毎) と 金融市場Bot(25,55・8,38=15分毎) に絞る。
+  #     → 15〜30分に1回＝1実行の所要時間に対して適切な間隔。冗長性は保ちつつ過剰だけ削る。
   #   ★★片方向厳守: crypto_bridge 側の workflow_run に本workflowを足すと
-  #     ailab_bridge ⇄ crypto_bridge の無限ループになりActions枠を食い潰す(目詰まりの自作)。絶対に足さない。
+  #     ailab_bridge ⇄ crypto_bridge の無限ループになりActions枠を食い潰す。絶対に足さない。
   workflow_run:
     workflows:
       - "IC Club 5-Category News Notifier"
       - "金融市場Bot Phase2/3 開示・政策・SEC速報"
-      - "Crypto Bridge trigger kurenai-crypto-market"
     types: [completed]
 
 permissions:
