@@ -1,0 +1,46 @@
+name: AI Lab Bridge trigger ailab-news-bot
+
+on:
+  # 既存workflow衝突回避: IC倶楽部(5,35) / market_notify(25,55・8,38) / crypto_bridge(4,14,24,34,44,54) と 11,41 でずらす
+  schedule:
+    - cron: "11,41 * * * *"
+    - cron: "0 */3 * * *"        # 冗長(3時間毎の最終保険・market_notifyの冗長2に倣う)
+  workflow_dispatch:
+  # ★生きているschedulerに便乗発火。
+  #   AIラボ本体を ailab-news-bot へ分離した結果、Layer1(自前cron)もLayer3(kurenai-market-trigger)も
+  #   GitHub側のschedule間引きで停止し、2026-09-03に7時間配信が止まった。
+  #   IC倶楽部/金融市場Botは同時刻帯にschedule実績があるため、その完了に便乗して押す。
+  workflow_run:
+    workflows:
+      - "IC Club 5-Category News Notifier"
+      - "金融市場Bot Phase2/3 開示・政策・SEC速報"
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ailab-bridge
+  cancel-in-progress: false
+
+jobs:
+  bridge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch ailab-news-bot
+        env:
+          GH_PAT: ${{ secrets.CROSS_REPO_PAT }}
+        run: |
+          set +e
+          REPO="akatsuki-5648/ailab-news-bot"
+          for wf in ailab_news_notify.yml; do
+            code=$(curl -sS -o /dev/null -w "%{http_code}" \
+              -X POST \
+              -H "Authorization: token $GH_PAT" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$REPO/actions/workflows/$wf/dispatches" \
+              -d '{"ref":"main"}')
+            echo "ailab-bridge [$code] $wf"
+            sleep 2
+          done
