@@ -20,7 +20,7 @@
 #   5) 自動化: .github/workflows で cron '15,45 * * * *'
 # 重複排除: 同ディレクトリ ailab_seen_urls.json / 投稿POSTには User-Agent 必須(無いとCloudflare403)
 # ================================================================
-import os, sys, io, json, time, re, urllib.parse, urllib.request, urllib.error
+import os, sys, io, json, time, re, calendar, urllib.parse, urllib.request, urllib.error
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 try:
     import feedparser
@@ -32,8 +32,10 @@ except ImportError:
 HERE = os.path.dirname(os.path.abspath(__file__))
 SEEN_FILE = os.path.join(HERE, "ailab_seen_urls.json")
 WEBHOOKS_JSON = os.path.join(HERE, "ailab_webhooks.json")
-PER_SOURCE = 2
-PER_CHANNEL = 2
+PER_SOURCE = 3        # ★速報化: 1ソースから拾う上限
+PER_CHANNEL = 4       # ★速報化: 1chの1回あたり投稿上限
+FRESH_HOURS = 48      # ★速報化: 直近48hの記事だけを速報として拾う(窓外の古い既出は対象外)
+NOW = time.time()     # 実行開始時刻(UTC epoch)。時間窓判定の基準
 UA = "AILabNewsBot/1.0 (+https://discord.com)"
 COL_BIZ, COL_FIELD, COL_SUM = 0x00E5FF, 0x00FF9C, 0xFF7A1A
 
@@ -185,6 +187,17 @@ TOPICS = [
 def gn_url(q):
     return "https://news.google.com/rss/search?q=" + urllib.parse.quote(q) + "&hl=ja&gl=JP&ceid=JP:ja"
 
+def entry_epoch(e):
+    # 記事の公開時刻(UTC epoch)。無ければNone。速報化(時刻ソート・時間窓)の心臓部。
+    for k in ("published_parsed", "updated_parsed"):
+        tm = e.get(k)
+        if tm:
+            try:
+                return calendar.timegm(tm)
+            except Exception:
+                pass
+    return None
+
 def clean(t):
     t = re.sub(r"<[^>]+>", " ", t or "")
     t = t.replace("&nbsp;", " ").replace("&amp;", "&").replace("&#39;", "'").replace("&quot;", '"').replace("&lt;", "<").replace("&gt;", ">")
@@ -330,9 +343,16 @@ def fetch(src):
     exclude = GLOBAL_EXCLUDE + (src.get("exclude") or [])
     title_include = src.get("title_include") or []
     title_exclude = src.get("title_exclude") or []
+    # ★速報化: 全エントリを公開時刻で新しい順にソート(先頭 f.entries[:PER_SOURCE*5] 固定を廃止)。
+    #          時刻が取れないものは後ろに回す(フィード順)。
+    dated = [(entry_epoch(e), e) for e in (getattr(f, "entries", []) or [])]
+    dated.sort(key=lambda x: (x[0] is not None, x[0] or 0.0), reverse=True)
     out = []
     seen_titles = set()
-    for e in f.entries[: PER_SOURCE * 5]:
+    for ts, e in dated:
+        # ★時間窓: 公開時刻が分かるものは直近 FRESH_HOURS 時間だけを速報として通す。古いものは捨てる。
+        if ts is not None and (NOW - ts) > FRESH_HOURS * 3600:
+            continue
         title = clean(e.get("title", ""))
         if not title: continue
         summ = clean(e.get("summary", "") or e.get("description", ""))
