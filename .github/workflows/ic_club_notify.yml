@@ -23,6 +23,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # ★2026-09-06 追加（AIラボ側で2026-09-05に実測して確定した対策と同じ）。
+          #   actions/checkout は既定で github.sha＝runが【作成】された時点のSHAを取る。
+          #   concurrencyで順番待ちしている間に他のworkflowがpushすると、
+          #   待たされたrunは古いSHAをcheckout→detached HEADになり
+          #   "fatal: You are not currently on a branch." でgit pushが死ぬ。
+          #   するとseenが保存されず、数時間後に同じ記事がもう一度流れる。
+          ref: main
 
       - name: Set up Python
         uses: actions/setup-python@v5
