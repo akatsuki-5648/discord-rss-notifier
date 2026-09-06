@@ -42,6 +42,7 @@ import requests
 import json
 import re
 import time
+import calendar
 import urllib.parse
 from datetime import datetime
 
@@ -178,7 +179,20 @@ TOPIC_FILTERS = {
 SEEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ic_club_seen_urls.json")
 EMBED_COLOR = 0x2ECC71
 POST_INTERVAL_SEC = 1.2
-MAX_ENTRIES_PER_SOURCE = 5  # 1ソースあたり直近何件まで見るか（初回大量投稿防止）
+MAX_ENTRIES_PER_SOURCE = 5  # 1ソースあたり何件まで見るか（★2026-09-06 以降は「新しい順の」5件）
+# ★2026-09-06 実叩きで判明。fetch_google_news が feed.entries[:5] の【先頭固定】で、
+#   公開時刻を一度も読んでいなかった。Googleは生100件返すのに先頭5件が既出で埋まると0件になる。
+#   ＝2026-08-27にAIラボの15分類ニュースを殺したのと同じコードが、ここに残っていた。
+#   実測(2026-09-06): ④政治は48h内に未読48件あるのに【今の実装で拾えるのは1件】。
+#         ②老後不安 13件→2件 / ③高市政権 7件→1件。
+#         ①後期高齢者と⑤自己肯定感は 48h内の未読が0件＝こちらは母集団が本当に薄いだけ。
+#   ★取りこぼしは「溜まり」ではなく「流れ」だった(④は48hに平坦分布・1.00件/時)。
+FRESH_HOURS = 48            # ★直近48hの記事だけを速報として拾う
+NOW = time.time()           # 実行開始時刻(UTC epoch)。時間窓の基準
+# ★1トピックが1回に投稿する上限。溜まっている分を一度に流さないための堰。
+#   数字の根拠: ④の流入は実測1.00件/時=24件/日、ICの実発火は8回/日。
+#   6件x8回=48件/日 で流入24件/日に追いつき、溜まり48件も約24時間で吐き切る。
+MAX_POSTS_PER_TOPIC = 6
 
 # ============================================================
 # 各ソースタイプの取得関数
@@ -189,11 +203,44 @@ def log(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
 
 
+def entry_epoch(e):
+    """記事の公開時刻をUTC epochで返す。取れなければ None。"""
+    for k in ("published_parsed", "updated_parsed"):
+        tm = e.get(k)
+        if tm:
+            try:
+                return calendar.timegm(tm)
+            except Exception:
+                pass
+    return None
+
+
+def canonical_title(title):
+    """媒体名や括弧書きを落とした照合用のキー。
+    ★同じ記事がGoogle Newsから別URLで何度も来るため、URLだけでは重複を止められない。
+      実測(2026-09-06 ④政治): 48h内の未読48件のうち5件が「同じ記事・別URL」。
+      例: 「米国が紛争解決へ複数の案を提示とロシア」が3URL。"""
+    t = re.sub(r"\s+-\s+[^|]+(?:\s+\|.*)?$", "", title or "")
+    t = re.sub(r"\s*[（(][^）)]{2,50}[）)]\s*$", "", t)
+    return re.sub(r"\s+", " ", t).strip().lower()
+
+
 def fetch_google_news(query):
     url = "https://news.google.com/rss/search?q=" + urllib.parse.quote(query) + "&hl=ja&gl=JP&ceid=JP:ja"
     feed = feedparser.parse(url)
-    return [{"title": e.get("title", ""), "link": e.get("link", ""), "summary": e.get("summary", "")}
-            for e in feed.entries[:MAX_ENTRIES_PER_SOURCE]]
+    # ★先頭固定をやめ、公開時刻で新しい順に並べてから直近FRESH_HOURSだけを見る。
+    #   時刻が取れないものは後ろへ回す(フィード順のまま)。
+    dated = [(entry_epoch(e), e) for e in (getattr(feed, "entries", []) or [])]
+    dated.sort(key=lambda x: (x[0] is not None, x[0] or 0.0), reverse=True)
+    out = []
+    for ts, e in dated:
+        if ts is not None and (NOW - ts) > FRESH_HOURS * 3600:
+            continue
+        out.append({"title": e.get("title", ""), "link": e.get("link", ""),
+                    "summary": e.get("summary", "")})
+        if len(out) >= MAX_ENTRIES_PER_SOURCE:
+            break
+    return out
 
 
 def fetch_direct_rss(url, must_include):
@@ -292,7 +339,10 @@ def one_pass():
             log(f"スキップ [{topic_name}] {config['webhook_env']} が未設定")
             continue
 
+        posted_here = 0                      # ★このトピックで今回投稿した数
         for source in config["sources"]:
+            if posted_here >= MAX_POSTS_PER_TOPIC:
+                break
             apply_filter = source.get("filter", False)
             try:
                 items = fetch_source(source)
@@ -301,18 +351,28 @@ def one_pass():
                 continue
 
             for item in items:
+                if posted_here >= MAX_POSTS_PER_TOPIC:
+                    break
                 link = item.get("link", "")
-                if not link or link in seen:
-                    continue
                 title, summary = item.get("title", ""), item.get("summary", "")
+                tkey = canonical_title(title)
+                # ★URLだけでなく正規化タイトルでも既出を見る（同じ記事・別URL対策）
+                if not link or link in seen or (tkey and tkey in seen):
+                    continue
                 if not passes_hard_exclude(title, summary):
                     continue
                 if apply_filter and not passes_topic_filter(topic_name, title, summary):
                     continue
                 if post_to_discord(webhook_url, topic_name, item):
+                    # ★投稿が成功した時だけ記録する（この順序は元からの美点。壊さない）
                     seen.add(link)
+                    if tkey:
+                        seen.add(tkey)
+                    posted_here += 1
                     new_count += 1
                     time.sleep(POST_INTERVAL_SEC)
+        if posted_here >= MAX_POSTS_PER_TOPIC:
+            log(f"上限 [{topic_name}] 1回{MAX_POSTS_PER_TOPIC}件で打ち切り（残りは次回）")
 
     save_seen(seen)
     log(f"=== 巡回完了：新着 {new_count} 件投稿 ===")
