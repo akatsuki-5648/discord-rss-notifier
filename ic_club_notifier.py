@@ -102,8 +102,15 @@ NEWS_TOPICS = {
              "query": '(高市政権 OR 高市早苗) (外交 OR 安全保障 OR 防衛 OR 日米 OR 中国 OR 台湾 OR 韓国)'},
             {"type": "google_news",
              "query": '(高市政権 OR 高市内閣) (支持率 OR 世論調査 OR 評価 OR 課題 OR 批判 OR 成果)'},
-            {"type": "direct_rss", "url": "https://www3.nhk.or.jp/rss/news/cat4.xml",
-             "must_include": ["高市"], "filter": True},
+            # ★2026-09-12 NHK cat4.xml を外した。
+            #   ★NHKのRSSは cat0〜cat7 の【全カテゴリ】が 2026-08-08〜09 で停止している
+            #     （実測 835〜849時間前）。HTTP 200 を返し entry も 72件返すので、
+            #     叩くだけでは死んでいると気づけない。pubDateの最新を見るまで生存判定にしない。
+            #   ★このフィードの title は「NHKニュース|政治」で中身も政治だった
+            #     （72件中15件が高市関連）＝生きていれば良いソースだった。惜しいが今は何も返らない。
+            #   ★代替は入れない ── 共同(Yahoo配信)50件/Yahoo国内50件/朝日40件/毎日20件/時事10件を
+            #     実測したが「高市」を含むのは 0〜1件しかない。上の google_news で足りている
+            #     （実測 2026-09-12：③はDiscordに7日で76件・48hで14件が実際に出ている）。
         ],
     },
     "④政治関連ニュース・日本、世界で今何が": {
@@ -117,8 +124,16 @@ NEWS_TOPICS = {
              "query": '(台湾 OR Taiwan) (中国 OR 米国 OR 日本) (安全保障 OR 軍事 OR 外交 OR 選挙)'},
             {"type": "google_news",
              "query": '(米国 OR アメリカ OR Trump OR Congress) (選挙 OR 政権 OR 外交 OR 制裁 OR 法案 OR 予算)'},
-            {"type": "direct_rss", "url": "https://www3.nhk.or.jp/rss/news/cat4.xml",
-             "must_include": [], "filter": False},
+            # ★2026-09-12 NHK cat4.xml を外した。
+            #   ★NHKのRSSは cat0〜cat7 の【全カテゴリ】が 2026-08-08〜09 で停止している
+            #     （実測 835〜849時間前）。HTTP 200 を返し entry も 72件返すので、
+            #     叩くだけでは死んでいると気づけない。pubDateの最新を見るまで生存判定にしない。
+            #   ★このフィードの title は「NHKニュース|政治」で中身も政治だった
+            #     （72件中15件が高市関連）＝生きていれば良いソースだった。惜しいが今は何も返らない。
+            #   ★代替は入れない ── 共同(Yahoo配信)50件/Yahoo国内50件/朝日40件/毎日20件/時事10件を
+            #     実測したが「高市」を含むのは 0〜1件しかない。上の google_news で足りている
+            #     （実測 2026-09-12：④はDiscordに7日で100件・48hで72件が実際に出ている）。
+            #   ★なおこの枠は filter:False ＝ 無条件で全部流す設計だった。
         ],
     },
     "⑤家族ができる高齢者の自己肯定感向上サポート": {
